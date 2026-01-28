@@ -75,24 +75,32 @@ export function serializeLexical({ nodes }: Props): JSX.Element {
         // NOTE: Hacky fix for
         // https://github.com/facebook/lexical/blob/d10c4e6e55261b2fdd7d1845aed46151d0f06a8c/packages/lexical-list/src/LexicalListItemNode.ts#L133
         // which does not return checked: false (only true - i.e. there is no prop for false)
-        const serializedChildrenFn = (node: NodeTypes): JSX.Element | null => {
-          // @ts-expect-error
-          if (node.children == null) {
-          if (!('children' in node) || node.children == null) {
-            return null
-          } else {
-            if (node?.type === 'list' && node?.listType === 'check') {
-              for (const item of node.children) {
-                if ('checked' in item) {
-                  if (!item?.checked) {
-                    item.checked = false
-                  }
-                }
-              }
-            }
-            return serializeLexical({ nodes: node.children as NodeTypes[] })
+        // THE ROBUST TYPE-SAFE VERSION
+const serializedChildrenFn = (node: NodeTypes): JSX.Element | null => {
+  // 1. Check if the node is an object and has 'children' property
+  if (node && typeof node === 'object' && 'children' in node && Array.isArray(node.children)) {
+    // 2. Safely check if children exist
+    if (node.children.length === 0) {
+      return null
+    }
+
+    // Handle check lists as before
+    if (node?.type === 'list' && (node as any)?.listType === 'check') {
+      for (const child of node.children) {
+        if (child && typeof child === 'object' && 'checked' in child) {
+          if (!child.checked) {
+            (child as any).checked = false
           }
         }
+      }
+    }
+
+    // 3. Cast to any here to satisfy the serializer call if it's being picky
+    return serializeLexical({ nodes: node.children as any })
+  }
+  
+  return null
+}
 
         const serializedChildren = 'children' in node ? serializedChildrenFn(node) : ''
 
